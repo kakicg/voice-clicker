@@ -47,6 +47,26 @@ class StatusBarController {
 
         menu.addItem(.separator())
 
+        let timeoutMenu = NSMenu()
+        for minutes in [15, 30, 60, 120] {
+            let item = NSMenuItem(title: "\(minutes)分", action: #selector(setTimeoutMinutes(_:)), keyEquivalent: "")
+            item.tag = minutes
+            item.target = self
+            item.state = clickManager.timeoutMinutes == minutes ? .on : .off
+            timeoutMenu.addItem(item)
+        }
+        let neverItem = NSMenuItem(title: "なし", action: #selector(setTimeoutMinutes(_:)), keyEquivalent: "")
+        neverItem.tag = 0
+        neverItem.target = self
+        neverItem.state = clickManager.timeoutMinutes == nil ? .on : .off
+        timeoutMenu.addItem(neverItem)
+
+        let timeoutItem = NSMenuItem(title: "無操作リセット", action: nil, keyEquivalent: "")
+        timeoutItem.submenu = timeoutMenu
+        menu.addItem(timeoutItem)
+
+        menu.addItem(.separator())
+
         let isEnabled = (try? SMAppService.mainApp.status) == .enabled
         let loginItem = NSMenuItem(
             title: isEnabled ? "ログイン時に起動: オン" : "ログイン時に起動: オフ",
@@ -64,6 +84,11 @@ class StatusBarController {
 
     @objc private func startRecording() { clickManager.startRecording() }
     @objc private func resetPosition() { clickManager.resetPosition() }
+
+    @objc private func setTimeoutMinutes(_ sender: NSMenuItem) {
+        clickManager.timeoutMinutes = sender.tag == 0 ? nil : sender.tag
+        rebuildMenu()
+    }
 
     @objc private func toggleLoginItem() {
         let service = SMAppService.mainApp

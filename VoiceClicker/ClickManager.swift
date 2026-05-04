@@ -3,21 +3,33 @@ import Cocoa
 class ClickManager {
     private(set) var registeredPosition: CGPoint? {
         didSet {
-            print("📣 registeredPosition 更新: \(String(describing: registeredPosition))")
             NotificationCenter.default.post(name: .clickPositionChanged, object: registeredPosition)
         }
     }
 
+    // タイムアウト分数。nil = 無効
+    var timeoutMinutes: Int? = 30 {
+        didSet {
+            UserDefaults.standard.set(timeoutMinutes ?? 0, forKey: "timeoutMinutes")
+            resetIdleTimer()
+        }
+    }
+
+    private var idleTimer: Timer?
+
+    init() {
+        let saved = UserDefaults.standard.integer(forKey: "timeoutMinutes")
+        timeoutMinutes = saved == 0 ? 30 : saved
+    }
+
+    // MARK: - Recording
+
     func startRecording() {
         OverlayWindowController.shared.show { [weak self] pos in
-            print("📍 コールバック呼ばれた pos=\(pos) self=\(String(describing: self))")
-            guard let self else {
-                print("❌ self が nil — ClickManager が解放されています")
-                NSSound(named: "Pop")?.play()
-                return
-            }
+            guard let self else { return }
             self.registeredPosition = pos
             NSSound(named: "Pop")?.play()
+            self.resetIdleTimer()
         }
     }
 
@@ -34,9 +46,26 @@ class ClickManager {
         CGEvent(mouseEventSource: src, mouseType: .leftMouseUp, mouseCursorPosition: pos, mouseButton: .left)?
             .post(tap: .cghidEventTap)
         CGWarpMouseCursorPosition(saved)
+
+        resetIdleTimer()
     }
 
-    func resetPosition() { registeredPosition = nil }
+    func resetPosition() {
+        registeredPosition = nil
+        idleTimer?.invalidate()
+        idleTimer = nil
+    }
+
+    // MARK: - Idle Timer
+
+    private func resetIdleTimer() {
+        idleTimer?.invalidate()
+        idleTimer = nil
+        guard let minutes = timeoutMinutes, minutes > 0, registeredPosition != nil else { return }
+        idleTimer = Timer.scheduledTimer(withTimeInterval: Double(minutes) * 60, repeats: false) { [weak self] _ in
+            self?.registeredPosition = nil
+        }
+    }
 
     // MARK: - Helpers
 
